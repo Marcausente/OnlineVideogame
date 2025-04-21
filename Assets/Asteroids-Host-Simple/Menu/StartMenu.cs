@@ -15,7 +15,7 @@ namespace Asteroids.HostSimple
     public class StartMenu : MonoBehaviour, INetworkRunnerCallbacks
     {
         [SerializeField] private NetworkRunner _networkRunnerPrefab = null;
-        [SerializeField] private PlayerData _playerDataPrefab = null;
+        [SerializeField] private NetworkPrefabRef _playerDataPrefab;
 
         [SerializeField] private TMP_InputField _nickName = null;
 
@@ -36,6 +36,7 @@ namespace Asteroids.HostSimple
 
         private NetworkRunner _runnerInstance = null;
         private Dictionary<PlayerRef, NetworkObject> _players = new Dictionary<PlayerRef, NetworkObject>();
+        private string _localPlayerNickname;
 
         private void Start()
         {
@@ -66,22 +67,10 @@ namespace Asteroids.HostSimple
 
         private void SetPlayerData()
         {
-            var playerData = FindObjectOfType<PlayerData>();
-            if (playerData == null)
-            {
-                playerData = Instantiate(_playerDataPrefab);
-                if (playerData == null)
-                {
-                    Debug.LogError("Error: No se pudo instanciar PlayerData");
-                    return;
-                }
-            }
-
-            string nickname = string.IsNullOrWhiteSpace(_nickName.text) ? 
+            _localPlayerNickname = string.IsNullOrWhiteSpace(_nickName.text) ? 
                 _nickNamePlaceholder.text : _nickName.text;
             
-            playerData.SetNickName(nickname);
-            Debug.Log($"Jugador configurado - Nickname: {playerData.GetNickName()}");
+            Debug.Log($"Nickname local configurado: {_localPlayerNickname}");
         }
 
         private async void StartGame(GameMode mode, string roomName, string sceneName)
@@ -173,9 +162,19 @@ namespace Asteroids.HostSimple
             
             if (_players.ContainsKey(player)) return;
             
-            var playerData = runner.Spawn(_playerDataPrefab, Vector3.zero, Quaternion.identity, player);
-            _players.Add(player, playerData);
+            Vector3 spawnPosition = Vector3.zero;
+            NetworkObject playerObject = runner.Spawn(_playerDataPrefab, spawnPosition, Quaternion.identity, player);
             
+            if (player == runner.LocalPlayer)
+            {
+                var playerData = playerObject.GetComponent<PlayerData>();
+                if (playerData != null)
+                {
+                    playerData.SetNickName(_localPlayerNickname);
+                }
+            }
+            
+            _players.Add(player, playerObject);
             UpdateLobbyUI();
         }
 
