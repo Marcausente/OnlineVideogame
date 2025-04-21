@@ -70,13 +70,18 @@ namespace Asteroids.HostSimple
             if (playerData == null)
             {
                 playerData = Instantiate(_playerDataPrefab);
+                if (playerData == null)
+                {
+                    Debug.LogError("Error: No se pudo instanciar PlayerData");
+                    return;
+                }
             }
 
             string nickname = string.IsNullOrWhiteSpace(_nickName.text) ? 
                 _nickNamePlaceholder.text : _nickName.text;
             
             playerData.SetNickName(nickname);
-            Debug.Log($"Configurando jugador con nickname: {nickname}");
+            Debug.Log($"Jugador configurado - Nickname: {playerData.GetNickName()}");
         }
 
         private async void StartGame(GameMode mode, string roomName, string sceneName)
