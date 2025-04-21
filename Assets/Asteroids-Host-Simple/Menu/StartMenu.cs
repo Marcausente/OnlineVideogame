@@ -33,6 +33,10 @@ namespace Asteroids.HostSimple
         [SerializeField] private GameObject _lobbyPanelPrefab;
         [SerializeField] private Canvas _mainCanvas;
 
+        // Campos para debug
+        private bool _debugMode = true;
+        private string _playerListText = "";
+
         private NetworkRunner _runnerInstance = null;
         private Dictionary<PlayerRef, NetworkObject> _players = new Dictionary<PlayerRef, NetworkObject>();
         private string _localPlayerNickname;
@@ -49,25 +53,30 @@ namespace Asteroids.HostSimple
 
         private void Start()
         {
-            Debug.Log("Iniciando StartMenu");
+            Debug.Log("[StartMenu] Iniciando StartMenu");
             InitializeUI();
         }
 
         private void InitializeUI()
         {
-            // Asegurar que tenemos todos los elementos de UI necesarios
-            EnsureUIReferencesExist();
-
             if (_mainMenuPanel != null)
             {
                 _mainMenuPanel.SetActive(true);
-                Debug.Log("Panel del menú principal activado");
+                Debug.Log("[StartMenu] Panel del menú principal activado");
+            }
+            else
+            {
+                Debug.LogError("[StartMenu] El panel del menú principal no está asignado");
             }
 
             if (_lobbyPanel != null)
             {
                 _lobbyPanel.SetActive(false);
-                Debug.Log("Panel del lobby desactivado");
+                Debug.Log("[StartMenu] Panel del lobby desactivado");
+            }
+            else
+            {
+                Debug.LogError("[StartMenu] El panel del lobby no está asignado");
             }
 
             if (_startGameButton != null)
@@ -75,133 +84,47 @@ namespace Asteroids.HostSimple
                 _startGameButton.interactable = false;
                 _startGameButton.onClick.RemoveAllListeners();
                 _startGameButton.onClick.AddListener(StartGameFromLobby);
-                Debug.Log("Botón de inicio de juego configurado");
+                Debug.Log("[StartMenu] Botón de inicio de juego configurado");
             }
 
-            UpdateStatusText("Listo para comenzar");
-        }
-
-        private void EnsureUIReferencesExist()
-        {
-            // Crear el panel de lobby si no existe
-            if (_lobbyPanel == null)
+            if (_statusText != null)
             {
-                Debug.LogWarning("Lobby Panel no asignado, intentando crearlo...");
-                
-                if (_lobbyPanelPrefab != null && _mainCanvas != null)
-                {
-                    _lobbyPanel = Instantiate(_lobbyPanelPrefab, _mainCanvas.transform);
-                    Debug.Log("Panel de lobby creado desde prefab");
-                }
-                else
-                {
-                    // Crear un panel de lobby básico si no tenemos prefab
-                    CreateBasicLobbyPanel();
-                }
-            }
-
-            // Asegurar que tenemos referencias a los elementos del lobby
-            if (_lobbyPanel != null)
-            {
-                // Encontrar textos y botones dentro del panel si no están asignados
-                if (_playerCountText == null)
-                    _playerCountText = _lobbyPanel.GetComponentInChildren<TextMeshProUGUI>(true);
-                
-                if (_waitingText == null)
-                {
-                    var texts = _lobbyPanel.GetComponentsInChildren<TextMeshProUGUI>(true);
-                    if (texts.Length > 1)
-                        _waitingText = texts[1];
-                }
-                
-                if (_startGameButton == null)
-                    _startGameButton = _lobbyPanel.GetComponentInChildren<Button>(true);
-                
-                Debug.Log($"Referencias del lobby: PlayerCount={_playerCountText != null}, WaitingText={_waitingText != null}, StartButton={_startGameButton != null}");
+                _statusText.text = "Listo para comenzar";
             }
         }
 
-        private void CreateBasicLobbyPanel()
+        private void OnGUI()
         {
-            Debug.Log("Creando panel de lobby básico...");
-            if (_mainCanvas == null) return;
+            if (!_debugMode) return;
 
-            // Crear el panel base
-            _lobbyPanel = new GameObject("LobbyPanel", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-            _lobbyPanel.transform.SetParent(_mainCanvas.transform, false);
+            // Mostrar estado de la conexión y jugadores en modo debug
+            GUILayout.BeginArea(new Rect(10, 10, 300, 300));
             
-            RectTransform rectTransform = _lobbyPanel.GetComponent<RectTransform>();
-            rectTransform.anchoredPosition = Vector2.zero;
-            rectTransform.sizeDelta = new Vector2(400, 300);
+            GUILayout.Label("Estado de conexión:");
+            GUILayout.Label($"Runner: {(_runnerInstance != null ? "Activo" : "Null")}");
+            GUILayout.Label($"Es servidor: {(_runnerInstance != null && _runnerInstance.IsServer ? "Sí" : "No")}");
+            GUILayout.Label($"Jugadores conectados: {_players.Count}");
             
-            Image panelImage = _lobbyPanel.GetComponent<Image>();
-            panelImage.color = new Color(0.2f, 0.2f, 0.2f, 0.9f);
-
-            // Crear el texto de contador de jugadores
-            GameObject playerCountObj = new GameObject("PlayerCountText", typeof(RectTransform), typeof(TextMeshProUGUI));
-            playerCountObj.transform.SetParent(_lobbyPanel.transform, false);
-            _playerCountText = playerCountObj.GetComponent<TextMeshProUGUI>();
-            _playerCountText.text = "Jugadores: 0/2";
-            _playerCountText.fontSize = 24;
-            _playerCountText.alignment = TextAlignmentOptions.Center;
+            GUILayout.Label("Lista de jugadores:");
+            GUILayout.Label(_playerListText);
             
-            RectTransform playerCountRect = playerCountObj.GetComponent<RectTransform>();
-            playerCountRect.anchoredPosition = new Vector2(0, 80);
-            playerCountRect.sizeDelta = new Vector2(350, 50);
-
-            // Crear el texto de espera
-            GameObject waitingObj = new GameObject("WaitingText", typeof(RectTransform), typeof(TextMeshProUGUI));
-            waitingObj.transform.SetParent(_lobbyPanel.transform, false);
-            _waitingText = waitingObj.GetComponent<TextMeshProUGUI>();
-            _waitingText.text = "Esperando jugadores...";
-            _waitingText.fontSize = 18;
-            _waitingText.alignment = TextAlignmentOptions.Center;
+            GUILayout.Label("Elementos UI:");
+            GUILayout.Label($"Lobby Panel: {(_lobbyPanel != null ? (_lobbyPanel.activeSelf ? "Activo" : "Inactivo") : "Null")}");
+            GUILayout.Label($"Main Menu Panel: {(_mainMenuPanel != null ? (_mainMenuPanel.activeSelf ? "Activo" : "Inactivo") : "Null")}");
             
-            RectTransform waitingRect = waitingObj.GetComponent<RectTransform>();
-            waitingRect.anchoredPosition = new Vector2(0, 20);
-            waitingRect.sizeDelta = new Vector2(350, 50);
-
-            // Crear el botón de inicio
-            GameObject buttonObj = new GameObject("StartGameButton", typeof(RectTransform), typeof(Button), typeof(Image));
-            buttonObj.transform.SetParent(_lobbyPanel.transform, false);
-            _startGameButton = buttonObj.GetComponent<Button>();
-            
-            RectTransform buttonRect = buttonObj.GetComponent<RectTransform>();
-            buttonRect.anchoredPosition = new Vector2(0, -60);
-            buttonRect.sizeDelta = new Vector2(200, 50);
-            
-            Image buttonImage = buttonObj.GetComponent<Image>();
-            buttonImage.color = new Color(0.3f, 0.7f, 0.3f, 1f);
-            
-            // Texto del botón
-            GameObject buttonTextObj = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
-            buttonTextObj.transform.SetParent(buttonObj.transform, false);
-            TextMeshProUGUI buttonText = buttonTextObj.GetComponent<TextMeshProUGUI>();
-            buttonText.text = "Iniciar Partida";
-            buttonText.fontSize = 18;
-            buttonText.alignment = TextAlignmentOptions.Center;
-            
-            RectTransform buttonTextRect = buttonTextObj.GetComponent<RectTransform>();
-            buttonTextRect.anchorMin = Vector2.zero;
-            buttonTextRect.anchorMax = Vector2.one;
-            buttonTextRect.sizeDelta = Vector2.zero;
-
-            // Inicialmente desactivado
-            _lobbyPanel.SetActive(false);
-            
-            Debug.Log("Panel de lobby básico creado con éxito");
+            GUILayout.EndArea();
         }
 
         public void StartHost()
         {
-            Debug.Log("Iniciando como host...");
+            Debug.Log("[StartMenu] Iniciando como host...");
             SetPlayerData();
             StartGame(GameMode.Host, _roomName.text);
         }
 
         public void StartClient()
         {
-            Debug.Log("Iniciando como cliente...");
+            Debug.Log("[StartMenu] Iniciando como cliente...");
             SetPlayerData();
             StartGame(GameMode.Client, _roomName.text);
         }
@@ -210,7 +133,7 @@ namespace Asteroids.HostSimple
         {
             _localPlayerNickname = string.IsNullOrWhiteSpace(_nickName.text) ? 
                 _nickNamePlaceholder.text : _nickName.text;
-            Debug.Log($"Nickname configurado: {_localPlayerNickname}");
+            Debug.Log($"[StartMenu] Nickname configurado: {_localPlayerNickname}");
         }
 
         private async void StartGame(GameMode mode, string roomName)
@@ -226,7 +149,7 @@ namespace Asteroids.HostSimple
             // Crear o obtener la instancia del NetworkRunner
             if (_runnerInstance == null)
             {
-                Debug.Log("Creando nueva instancia de NetworkRunner");
+                Debug.Log("[StartMenu] Creando nueva instancia de NetworkRunner");
                 _runnerInstance = Instantiate(_networkRunnerPrefab);
                 DontDestroyOnLoad(_runnerInstance.gameObject);
             }
@@ -242,7 +165,7 @@ namespace Asteroids.HostSimple
             var objectProvider = _runnerInstance.GetComponent<NetworkObjectPoolDefault>();
             if (objectProvider == null)
             {
-                Debug.LogWarning("No se encontró NetworkObjectPoolDefault, utilizando proveedor por defecto");
+                Debug.LogWarning("[StartMenu] No se encontró NetworkObjectPoolDefault, utilizando proveedor por defecto");
             }
 
             var startGameArgs = new StartGameArgs()
@@ -254,7 +177,7 @@ namespace Asteroids.HostSimple
                 SceneManager = _runnerInstance.GetComponent<NetworkSceneManagerDefault>()
             };
 
-            Debug.Log($"Iniciando juego - Modo: {mode}, Sala: {roomName}, Escena: {_gameSceneName}");
+            Debug.Log($"[StartMenu] Iniciando juego - Modo: {mode}, Sala: {roomName}, Escena: {_gameSceneName}");
 
             try
             {
@@ -262,43 +185,40 @@ namespace Asteroids.HostSimple
 
                 if (result.Ok)
                 {
-                    Debug.Log("¡Conexión exitosa! Mostrando lobby");
+                    Debug.Log("[StartMenu] ¡Conexión exitosa! Mostrando lobby");
                     ShowLobby();
                 }
                 else
                 {
-                    Debug.LogError($"Error al iniciar el juego: {result.ShutdownReason}");
+                    Debug.LogError($"[StartMenu] Error al iniciar el juego: {result.ShutdownReason}");
                     UpdateStatusText($"Error de conexión: {result.ShutdownReason}");
                 }
             }
             catch (Exception e)
             {
-                Debug.LogError($"Excepción al iniciar el juego: {e}");
+                Debug.LogError($"[StartMenu] Excepción al iniciar el juego: {e}");
                 UpdateStatusText("Error al conectar");
             }
         }
 
         private void ShowLobby()
         {
-            Debug.Log("Mostrando lobby");
+            Debug.Log("[StartMenu] Mostrando lobby");
             
             if (_mainMenuPanel != null) 
             {
                 _mainMenuPanel.SetActive(false);
-                Debug.Log("Panel del menú principal desactivado");
+                Debug.Log("[StartMenu] Panel del menú principal desactivado");
             }
-            
-            // Verificar y activar panel de lobby
-            EnsureUIReferencesExist();
             
             if (_lobbyPanel != null) 
             {
                 _lobbyPanel.SetActive(true);
-                Debug.Log("Panel del lobby activado");
+                Debug.Log("[StartMenu] Panel del lobby activado");
             }
             else
             {
-                Debug.LogError("¡El panel del lobby no está asignado después de intentar crearlo! Verifica las referencias en el Inspector.");
+                Debug.LogError("[StartMenu] ¡El panel del lobby no está asignado! Verifica las referencias en el Inspector.");
                 return;
             }
             
@@ -306,28 +226,28 @@ namespace Asteroids.HostSimple
             if (_playerCountText != null)
                 _playerCountText.text = $"Jugadores: {_players.Count}/2";
             else
-                Debug.LogError("PlayerCountText no está asignado");
+                Debug.LogError("[StartMenu] PlayerCountText no está asignado");
                 
             if (_waitingText != null)
                 _waitingText.text = "Esperando jugadores...";
             else
-                Debug.LogError("WaitingText no está asignado");
+                Debug.LogError("[StartMenu] WaitingText no está asignado");
                 
             if (_startGameButton != null)
             {
                 _startGameButton.interactable = false;
-                Debug.Log("Botón de inicio desactivado inicialmente");
+                Debug.Log("[StartMenu] Botón de inicio desactivado inicialmente");
             }
             else
-                Debug.LogError("StartGameButton no está asignado");
+                Debug.LogError("[StartMenu] StartGameButton no está asignado");
                 
             UpdateLobbyUI();
-            Debug.Log($"UI del lobby inicializada - Jugadores conectados: {_players.Count}");
+            Debug.Log($"[StartMenu] UI del lobby inicializada - Jugadores conectados: {_players.Count}");
         }
 
         private void UpdateStatusText(string message)
         {
-            Debug.Log($"Estado actualizado: {message}");
+            Debug.Log($"[StartMenu] Estado actualizado: {message}");
             if (_statusText != null) _statusText.text = message;
         }
 
@@ -336,7 +256,7 @@ namespace Asteroids.HostSimple
             if (_playerCountText != null)
                 _playerCountText.text = $"Jugadores: {_players.Count}/2";
             else
-                Debug.LogError("PlayerCountText es null en UpdateLobbyUI");
+                Debug.LogError("[StartMenu] PlayerCountText es null en UpdateLobbyUI");
 
             bool isHost = _runnerInstance != null && _runnerInstance.IsServer;
             bool canStart = _players.Count == 2 && isHost;
@@ -344,26 +264,35 @@ namespace Asteroids.HostSimple
             if (_startGameButton != null)
             {
                 _startGameButton.interactable = canStart;
-                Debug.Log($"Botón de inicio {(canStart ? "activado" : "desactivado")}");
+                Debug.Log($"[StartMenu] Botón de inicio {(canStart ? "activado" : "desactivado")}");
             }
             else
-                Debug.LogError("StartGameButton es null en UpdateLobbyUI");
+                Debug.LogError("[StartMenu] StartGameButton es null en UpdateLobbyUI");
 
             if (_waitingText != null)
                 _waitingText.text = _players.Count < 2 ? "Esperando jugadores..." : "¡Listo para comenzar!";
             else
-                Debug.LogError("WaitingText es null en UpdateLobbyUI");
+                Debug.LogError("[StartMenu] WaitingText es null en UpdateLobbyUI");
 
-            Debug.Log($"UI del lobby actualizada - Jugadores: {_players.Count}, Host: {isHost}, CanStart: {canStart}");
+            // Actualizar texto de debug
+            _playerListText = "";
+            foreach (var player in _players)
+            {
+                var playerData = player.Value.GetComponent<PlayerData>();
+                string nickname = playerData != null ? playerData.GetNickName() : "Desconocido";
+                _playerListText += $"Jugador {player.Key}: {nickname}\n";
+            }
+
+            Debug.Log($"[StartMenu] UI del lobby actualizada - Jugadores: {_players.Count}, Host: {isHost}, CanStart: {canStart}");
         }
 
         public void StartGameFromLobby()
         {
-            Debug.Log($"Intentando iniciar juego desde lobby - Runner: {_runnerInstance != null}, IsServer: {_runnerInstance?.IsServer}, Players: {_players.Count}");
+            Debug.Log($"[StartMenu] Intentando iniciar juego desde lobby - Runner: {_runnerInstance != null}, IsServer: {_runnerInstance?.IsServer}, Players: {_players.Count}");
             
             if (_runnerInstance != null && _runnerInstance.IsServer && _players.Count == 2)
             {
-                Debug.Log($"Iniciando partida desde el lobby - Escena: {_gameSceneName}");
+                Debug.Log($"[StartMenu] Iniciando partida desde el lobby - Escena: {_gameSceneName}");
                 _runnerInstance.LoadScene(_gameSceneName);
             }
             else
@@ -372,7 +301,7 @@ namespace Asteroids.HostSimple
                                 !_runnerInstance.IsServer ? "No eres el host" :
                                 _players.Count != 2 ? $"Insuficientes jugadores ({_players.Count}/2)" : "Razón desconocida";
                                 
-                Debug.LogWarning($"No se puede iniciar el juego - {reason}");
+                Debug.LogWarning($"[StartMenu] No se puede iniciar el juego - {reason}");
                 
                 if (_waitingText != null)
                     _waitingText.text = $"No se puede iniciar: {reason}";
@@ -383,11 +312,11 @@ namespace Asteroids.HostSimple
 
         public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
         {
-            Debug.Log($"Jugador unido - ID: {player}");
+            Debug.Log($"[StartMenu] Jugador unido - ID: {player}");
             
             if (_players.ContainsKey(player))
             {
-                Debug.LogWarning($"Jugador {player} ya existe en la lista");
+                Debug.LogWarning($"[StartMenu] Jugador {player} ya existe en la lista");
                 return;
             }
 
@@ -402,16 +331,16 @@ namespace Asteroids.HostSimple
                     if (playerData != null)
                     {
                         playerData.SetNickName(_localPlayerNickname);
-                        Debug.Log($"Nickname asignado al jugador local: {_localPlayerNickname}");
+                        Debug.Log($"[StartMenu] Nickname asignado al jugador local: {_localPlayerNickname}");
                     }
                     else
                     {
-                        Debug.LogError("No se pudo obtener el componente PlayerData");
+                        Debug.LogError("[StartMenu] No se pudo obtener el componente PlayerData");
                     }
                 }
 
                 _players.Add(player, playerObject);
-                Debug.Log($"Jugador añadido correctamente - Total: {_players.Count}");
+                Debug.Log($"[StartMenu] Jugador añadido correctamente - Total: {_players.Count}");
                 
                 // Asegurar que el lobby está visible al unirse
                 if (_mainMenuPanel != null && _mainMenuPanel.activeSelf)
@@ -425,13 +354,13 @@ namespace Asteroids.HostSimple
             }
             catch (Exception e)
             {
-                Debug.LogError($"Error al procesar OnPlayerJoined: {e}");
+                Debug.LogError($"[StartMenu] Error al procesar OnPlayerJoined: {e}");
             }
         }
 
         public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
         {
-            Debug.Log($"Jugador abandonó - ID: {player}");
+            Debug.Log($"[StartMenu] Jugador abandonó - ID: {player}");
             
             if (_players.TryGetValue(player, out NetworkObject playerObject))
             {
@@ -439,19 +368,19 @@ namespace Asteroids.HostSimple
                 {
                     runner.Despawn(playerObject);
                     _players.Remove(player);
-                    Debug.Log($"Jugador eliminado correctamente - Restantes: {_players.Count}");
+                    Debug.Log($"[StartMenu] Jugador eliminado correctamente - Restantes: {_players.Count}");
                     UpdateLobbyUI();
                 }
                 catch (Exception e)
                 {
-                    Debug.LogError($"Error al procesar OnPlayerLeft: {e}");
+                    Debug.LogError($"[StartMenu] Error al procesar OnPlayerLeft: {e}");
                 }
             }
         }
 
         public void OnConnectedToServer(NetworkRunner runner)
         {
-            Debug.Log("Conectado al servidor");
+            Debug.Log("[StartMenu] Conectado al servidor");
             UpdateStatusText("Conectado");
             
             // Mostrar el lobby al conectarse
@@ -460,7 +389,7 @@ namespace Asteroids.HostSimple
 
         public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason)
         {
-            Debug.Log($"Desconectado del servidor: {reason}");
+            Debug.Log($"[StartMenu] Desconectado del servidor: {reason}");
             UpdateStatusText($"Desconectado: {reason}");
             
             // Limpiar la lista de jugadores
@@ -476,13 +405,13 @@ namespace Asteroids.HostSimple
 
         public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason)
         {
-            Debug.LogError($"Falló la conexión: {reason}");
+            Debug.LogError($"[StartMenu] Falló la conexión: {reason}");
             UpdateStatusText($"Error de conexión: {reason}");
         }
 
         public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
         {
-            Debug.Log($"Shutdown del runner: {shutdownReason}");
+            Debug.Log($"[StartMenu] Shutdown del runner: {shutdownReason}");
             
             // Limpiar y volver al menú principal
             _players.Clear();
