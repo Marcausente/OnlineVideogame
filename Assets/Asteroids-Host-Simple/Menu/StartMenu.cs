@@ -28,9 +28,24 @@ namespace Asteroids.HostSimple
         [SerializeField] private Button _startGameButton;
         [SerializeField] private TextMeshProUGUI _waitingText;
 
+        // Prefabs y referencias para crear UI dinámicamente si es necesario
+        [Header("Prefabs (Automático)")]
+        [SerializeField] private GameObject _lobbyPanelPrefab;
+        [SerializeField] private Canvas _mainCanvas;
+
         private NetworkRunner _runnerInstance = null;
         private Dictionary<PlayerRef, NetworkObject> _players = new Dictionary<PlayerRef, NetworkObject>();
         private string _localPlayerNickname;
+
+        private void Awake()
+        {
+            // Asegurarse de que tenemos una referencia al canvas
+            if (_mainCanvas == null)
+            {
+                _mainCanvas = FindObjectOfType<Canvas>();
+                Debug.Log($"Canvas encontrado: {(_mainCanvas != null ? "Sí" : "No")}");
+            }
+        }
 
         private void Start()
         {
@@ -40,6 +55,9 @@ namespace Asteroids.HostSimple
 
         private void InitializeUI()
         {
+            // Asegurar que tenemos todos los elementos de UI necesarios
+            EnsureUIReferencesExist();
+
             if (_mainMenuPanel != null)
             {
                 _mainMenuPanel.SetActive(true);
@@ -55,11 +73,123 @@ namespace Asteroids.HostSimple
             if (_startGameButton != null)
             {
                 _startGameButton.interactable = false;
+                _startGameButton.onClick.RemoveAllListeners();
                 _startGameButton.onClick.AddListener(StartGameFromLobby);
                 Debug.Log("Botón de inicio de juego configurado");
             }
 
             UpdateStatusText("Listo para comenzar");
+        }
+
+        private void EnsureUIReferencesExist()
+        {
+            // Crear el panel de lobby si no existe
+            if (_lobbyPanel == null)
+            {
+                Debug.LogWarning("Lobby Panel no asignado, intentando crearlo...");
+                
+                if (_lobbyPanelPrefab != null && _mainCanvas != null)
+                {
+                    _lobbyPanel = Instantiate(_lobbyPanelPrefab, _mainCanvas.transform);
+                    Debug.Log("Panel de lobby creado desde prefab");
+                }
+                else
+                {
+                    // Crear un panel de lobby básico si no tenemos prefab
+                    CreateBasicLobbyPanel();
+                }
+            }
+
+            // Asegurar que tenemos referencias a los elementos del lobby
+            if (_lobbyPanel != null)
+            {
+                // Encontrar textos y botones dentro del panel si no están asignados
+                if (_playerCountText == null)
+                    _playerCountText = _lobbyPanel.GetComponentInChildren<TextMeshProUGUI>(true);
+                
+                if (_waitingText == null)
+                {
+                    var texts = _lobbyPanel.GetComponentsInChildren<TextMeshProUGUI>(true);
+                    if (texts.Length > 1)
+                        _waitingText = texts[1];
+                }
+                
+                if (_startGameButton == null)
+                    _startGameButton = _lobbyPanel.GetComponentInChildren<Button>(true);
+                
+                Debug.Log($"Referencias del lobby: PlayerCount={_playerCountText != null}, WaitingText={_waitingText != null}, StartButton={_startGameButton != null}");
+            }
+        }
+
+        private void CreateBasicLobbyPanel()
+        {
+            Debug.Log("Creando panel de lobby básico...");
+            if (_mainCanvas == null) return;
+
+            // Crear el panel base
+            _lobbyPanel = new GameObject("LobbyPanel", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            _lobbyPanel.transform.SetParent(_mainCanvas.transform, false);
+            
+            RectTransform rectTransform = _lobbyPanel.GetComponent<RectTransform>();
+            rectTransform.anchoredPosition = Vector2.zero;
+            rectTransform.sizeDelta = new Vector2(400, 300);
+            
+            Image panelImage = _lobbyPanel.GetComponent<Image>();
+            panelImage.color = new Color(0.2f, 0.2f, 0.2f, 0.9f);
+
+            // Crear el texto de contador de jugadores
+            GameObject playerCountObj = new GameObject("PlayerCountText", typeof(RectTransform), typeof(TextMeshProUGUI));
+            playerCountObj.transform.SetParent(_lobbyPanel.transform, false);
+            _playerCountText = playerCountObj.GetComponent<TextMeshProUGUI>();
+            _playerCountText.text = "Jugadores: 0/2";
+            _playerCountText.fontSize = 24;
+            _playerCountText.alignment = TextAlignmentOptions.Center;
+            
+            RectTransform playerCountRect = playerCountObj.GetComponent<RectTransform>();
+            playerCountRect.anchoredPosition = new Vector2(0, 80);
+            playerCountRect.sizeDelta = new Vector2(350, 50);
+
+            // Crear el texto de espera
+            GameObject waitingObj = new GameObject("WaitingText", typeof(RectTransform), typeof(TextMeshProUGUI));
+            waitingObj.transform.SetParent(_lobbyPanel.transform, false);
+            _waitingText = waitingObj.GetComponent<TextMeshProUGUI>();
+            _waitingText.text = "Esperando jugadores...";
+            _waitingText.fontSize = 18;
+            _waitingText.alignment = TextAlignmentOptions.Center;
+            
+            RectTransform waitingRect = waitingObj.GetComponent<RectTransform>();
+            waitingRect.anchoredPosition = new Vector2(0, 20);
+            waitingRect.sizeDelta = new Vector2(350, 50);
+
+            // Crear el botón de inicio
+            GameObject buttonObj = new GameObject("StartGameButton", typeof(RectTransform), typeof(Button), typeof(Image));
+            buttonObj.transform.SetParent(_lobbyPanel.transform, false);
+            _startGameButton = buttonObj.GetComponent<Button>();
+            
+            RectTransform buttonRect = buttonObj.GetComponent<RectTransform>();
+            buttonRect.anchoredPosition = new Vector2(0, -60);
+            buttonRect.sizeDelta = new Vector2(200, 50);
+            
+            Image buttonImage = buttonObj.GetComponent<Image>();
+            buttonImage.color = new Color(0.3f, 0.7f, 0.3f, 1f);
+            
+            // Texto del botón
+            GameObject buttonTextObj = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+            buttonTextObj.transform.SetParent(buttonObj.transform, false);
+            TextMeshProUGUI buttonText = buttonTextObj.GetComponent<TextMeshProUGUI>();
+            buttonText.text = "Iniciar Partida";
+            buttonText.fontSize = 18;
+            buttonText.alignment = TextAlignmentOptions.Center;
+            
+            RectTransform buttonTextRect = buttonTextObj.GetComponent<RectTransform>();
+            buttonTextRect.anchorMin = Vector2.zero;
+            buttonTextRect.anchorMax = Vector2.one;
+            buttonTextRect.sizeDelta = Vector2.zero;
+
+            // Inicialmente desactivado
+            _lobbyPanel.SetActive(false);
+            
+            Debug.Log("Panel de lobby básico creado con éxito");
         }
 
         public void StartHost()
@@ -103,6 +233,9 @@ namespace Asteroids.HostSimple
 
             // Configurar el NetworkRunner
             _runnerInstance.ProvideInput = true;
+            
+            // Eliminar todos los callbacks anteriores para evitar duplicados
+            _runnerInstance.RemoveCallbacks(this);
             _runnerInstance.AddCallbacks(this);
 
             // Asegurarse de que tenemos el objeto proveedor
@@ -148,11 +281,15 @@ namespace Asteroids.HostSimple
         private void ShowLobby()
         {
             Debug.Log("Mostrando lobby");
+            
             if (_mainMenuPanel != null) 
             {
                 _mainMenuPanel.SetActive(false);
                 Debug.Log("Panel del menú principal desactivado");
             }
+            
+            // Verificar y activar panel de lobby
+            EnsureUIReferencesExist();
             
             if (_lobbyPanel != null) 
             {
@@ -161,18 +298,30 @@ namespace Asteroids.HostSimple
             }
             else
             {
-                Debug.LogError("¡El panel del lobby no está asignado! Verifica las referencias en el Inspector.");
+                Debug.LogError("¡El panel del lobby no está asignado después de intentar crearlo! Verifica las referencias en el Inspector.");
+                return;
             }
             
-            UpdateLobbyUI();
-            
-            // Reiniciar el texto de espera y asegurar que el botón está correctamente desactivado inicialmente
+            // Asegurarse de que las referencias son válidas
+            if (_playerCountText != null)
+                _playerCountText.text = $"Jugadores: {_players.Count}/2";
+            else
+                Debug.LogError("PlayerCountText no está asignado");
+                
             if (_waitingText != null)
                 _waitingText.text = "Esperando jugadores...";
+            else
+                Debug.LogError("WaitingText no está asignado");
                 
             if (_startGameButton != null)
+            {
                 _startGameButton.interactable = false;
+                Debug.Log("Botón de inicio desactivado inicialmente");
+            }
+            else
+                Debug.LogError("StartGameButton no está asignado");
                 
+            UpdateLobbyUI();
             Debug.Log($"UI del lobby inicializada - Jugadores conectados: {_players.Count}");
         }
 
@@ -186,6 +335,8 @@ namespace Asteroids.HostSimple
         {
             if (_playerCountText != null)
                 _playerCountText.text = $"Jugadores: {_players.Count}/2";
+            else
+                Debug.LogError("PlayerCountText es null en UpdateLobbyUI");
 
             bool isHost = _runnerInstance != null && _runnerInstance.IsServer;
             bool canStart = _players.Count == 2 && isHost;
@@ -195,23 +346,36 @@ namespace Asteroids.HostSimple
                 _startGameButton.interactable = canStart;
                 Debug.Log($"Botón de inicio {(canStart ? "activado" : "desactivado")}");
             }
+            else
+                Debug.LogError("StartGameButton es null en UpdateLobbyUI");
 
             if (_waitingText != null)
                 _waitingText.text = _players.Count < 2 ? "Esperando jugadores..." : "¡Listo para comenzar!";
+            else
+                Debug.LogError("WaitingText es null en UpdateLobbyUI");
 
-            Debug.Log($"UI del lobby actualizada - Jugadores: {_players.Count}, Host: {isHost}");
+            Debug.Log($"UI del lobby actualizada - Jugadores: {_players.Count}, Host: {isHost}, CanStart: {canStart}");
         }
 
         public void StartGameFromLobby()
         {
+            Debug.Log($"Intentando iniciar juego desde lobby - Runner: {_runnerInstance != null}, IsServer: {_runnerInstance?.IsServer}, Players: {_players.Count}");
+            
             if (_runnerInstance != null && _runnerInstance.IsServer && _players.Count == 2)
             {
-                Debug.Log("Iniciando partida desde el lobby");
+                Debug.Log($"Iniciando partida desde el lobby - Escena: {_gameSceneName}");
                 _runnerInstance.LoadScene(_gameSceneName);
             }
             else
             {
-                Debug.LogWarning("No se puede iniciar el juego - Condiciones no cumplidas");
+                string reason = _runnerInstance == null ? "NetworkRunner es null" :
+                                !_runnerInstance.IsServer ? "No eres el host" :
+                                _players.Count != 2 ? $"Insuficientes jugadores ({_players.Count}/2)" : "Razón desconocida";
+                                
+                Debug.LogWarning($"No se puede iniciar el juego - {reason}");
+                
+                if (_waitingText != null)
+                    _waitingText.text = $"No se puede iniciar: {reason}";
             }
         }
 
@@ -227,21 +391,42 @@ namespace Asteroids.HostSimple
                 return;
             }
 
-            Vector3 spawnPosition = Vector3.zero;
-            NetworkObject playerObject = runner.Spawn(_playerDataPrefab, spawnPosition, Quaternion.identity, player);
-            
-            if (player == runner.LocalPlayer)
+            try
             {
-                var playerData = playerObject.GetComponent<PlayerData>();
-                if (playerData != null)
+                Vector3 spawnPosition = Vector3.zero;
+                NetworkObject playerObject = runner.Spawn(_playerDataPrefab, spawnPosition, Quaternion.identity, player);
+                
+                if (player == runner.LocalPlayer)
                 {
-                    playerData.SetNickName(_localPlayerNickname);
-                    Debug.Log($"Nickname asignado al jugador local: {_localPlayerNickname}");
+                    var playerData = playerObject.GetComponent<PlayerData>();
+                    if (playerData != null)
+                    {
+                        playerData.SetNickName(_localPlayerNickname);
+                        Debug.Log($"Nickname asignado al jugador local: {_localPlayerNickname}");
+                    }
+                    else
+                    {
+                        Debug.LogError("No se pudo obtener el componente PlayerData");
+                    }
+                }
+
+                _players.Add(player, playerObject);
+                Debug.Log($"Jugador añadido correctamente - Total: {_players.Count}");
+                
+                // Asegurar que el lobby está visible al unirse
+                if (_mainMenuPanel != null && _mainMenuPanel.activeSelf)
+                {
+                    ShowLobby();
+                }
+                else
+                {
+                    UpdateLobbyUI();
                 }
             }
-
-            _players.Add(player, playerObject);
-            UpdateLobbyUI();
+            catch (Exception e)
+            {
+                Debug.LogError($"Error al procesar OnPlayerJoined: {e}");
+            }
         }
 
         public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
@@ -250,9 +435,17 @@ namespace Asteroids.HostSimple
             
             if (_players.TryGetValue(player, out NetworkObject playerObject))
             {
-                runner.Despawn(playerObject);
-                _players.Remove(player);
-                UpdateLobbyUI();
+                try
+                {
+                    runner.Despawn(playerObject);
+                    _players.Remove(player);
+                    Debug.Log($"Jugador eliminado correctamente - Restantes: {_players.Count}");
+                    UpdateLobbyUI();
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError($"Error al procesar OnPlayerLeft: {e}");
+                }
             }
         }
 
@@ -260,14 +453,25 @@ namespace Asteroids.HostSimple
         {
             Debug.Log("Conectado al servidor");
             UpdateStatusText("Conectado");
+            
+            // Mostrar el lobby al conectarse
+            ShowLobby();
         }
 
         public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason)
         {
             Debug.Log($"Desconectado del servidor: {reason}");
             UpdateStatusText($"Desconectado: {reason}");
+            
+            // Limpiar la lista de jugadores
             _players.Clear();
-            UpdateLobbyUI();
+            
+            // Volver al menú principal
+            if (_mainMenuPanel != null)
+                _mainMenuPanel.SetActive(true);
+                
+            if (_lobbyPanel != null)
+                _lobbyPanel.SetActive(false);
         }
 
         public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason)
@@ -276,12 +480,27 @@ namespace Asteroids.HostSimple
             UpdateStatusText($"Error de conexión: {reason}");
         }
 
+        public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
+        {
+            Debug.Log($"Shutdown del runner: {shutdownReason}");
+            
+            // Limpiar y volver al menú principal
+            _players.Clear();
+            
+            if (_mainMenuPanel != null)
+                _mainMenuPanel.SetActive(true);
+                
+            if (_lobbyPanel != null)
+                _lobbyPanel.SetActive(false);
+                
+            UpdateStatusText($"Conexión cerrada: {shutdownReason}");
+        }
+
         #endregion
 
         #region Unused Callbacks
         public void OnInput(NetworkRunner runner, NetworkInput input) { }
         public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
-        public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason) { }
         public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }
         public void OnUserSimulationMessage(NetworkRunner runner, SimulationMessagePtr message) { }
         public void OnSessionListUpdated(NetworkRunner runner, List<SessionInfo> sessionList) { }
