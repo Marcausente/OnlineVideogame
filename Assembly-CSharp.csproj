@@ -1074,7 +1074,6 @@
     <ProjectCapability Remove="LaunchProfiles" />
     <ProjectCapability Remove="SharedProjectReferences" />
     <ProjectCapability Remove="ReferenceManagerSharedProjects" />
-    <ProjectCapability Remove="ProjectReferences" />
     <ProjectCapability Remove="ReferenceManagerProjects" />
     <ProjectCapability Remove="COMReferences" />
     <ProjectCapability Remove="ReferenceManagerCOM" />
