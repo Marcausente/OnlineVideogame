@@ -9,15 +9,16 @@ namespace Asteroids.HostSimple
     // and holds information about the local player in-between scene loads.
     public class PlayerData : NetworkBehaviour
     {
-        [Networked(OnChanged = nameof(OnNickNameChanged))]
+        [Networked]
         public NetworkString<_32> NickName { get; set; }
 
-        private void Start()
+        public override void Spawned()
         {
+            base.Spawned();
             var count = FindObjectsOfType<PlayerData>().Length;
             if (count > 1)
             {
-                Destroy(gameObject);
+                Runner.Despawn(Object);
                 return;
             }
 
@@ -31,7 +32,9 @@ namespace Asteroids.HostSimple
         {
             if (Object == null || Object.HasStateAuthority)
             {
-                NickName = string.IsNullOrWhiteSpace(nickName) ? GetRandomNickName() : nickName;
+                var newNickName = string.IsNullOrWhiteSpace(nickName) ? GetRandomNickName() : nickName;
+                NickName = newNickName;
+                Debug.Log($"Nickname establecido a: {newNickName}");
             }
         }
 
@@ -46,9 +49,12 @@ namespace Asteroids.HostSimple
             return $"Player {rngPlayerNumber:0000}";
         }
 
-        public static void OnNickNameChanged(Changed<PlayerData> changed)
+        public override void FixedUpdateNetwork()
         {
-            Debug.Log($"Nickname cambiado a: {changed.Behaviour.NickName}");
+            if (Object.HasStateAuthority)
+            {
+                // Aquí puedes agregar lógica adicional si es necesario
+            }
         }
     }
 }
