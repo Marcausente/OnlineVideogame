@@ -1,8 +1,10 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 using Fusion;
+using Fusion.Sockets;
 using TMPro;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -199,10 +201,10 @@ namespace Asteroids.HostSimple
             UpdateStatusText("Conectado");
         }
 
-        public void OnDisconnectedFromServer(NetworkRunner runner)
+        public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason)
         {
-            Debug.Log("Desconectado del servidor");
-            UpdateStatusText("Desconectado");
+            Debug.Log($"Desconectado del servidor: {reason}");
+            UpdateStatusText($"Desconectado: {reason}");
             _players.Clear();
             UpdateLobbyUI();
         }
@@ -211,6 +213,31 @@ namespace Asteroids.HostSimple
         {
             Debug.LogError($"Falló la conexión: {reason}");
             UpdateStatusText($"Error de conexión: {reason}");
+        }
+
+        public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ArraySegment<byte> data)
+        {
+            // No se necesita implementación para este juego
+        }
+
+        public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, ArraySegment<byte> data)
+        {
+            // No se necesita implementación para este juego
+        }
+
+        public void OnReliableDataProgress(NetworkRunner runner, PlayerRef player, ReliableKey key, float progress)
+        {
+            // No se necesita implementación para este juego
+        }
+
+        public void OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player)
+        {
+            // No se necesita implementación para este juego
+        }
+
+        public void OnObjectExitAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player)
+        {
+            // No se necesita implementación para este juego
         }
 
         // Implementación de otros métodos de INetworkRunnerCallbacks
@@ -222,7 +249,6 @@ namespace Asteroids.HostSimple
         public void OnSessionListUpdated(NetworkRunner runner, List<SessionInfo> sessionList) { }
         public void OnCustomAuthenticationResponse(NetworkRunner runner, Dictionary<string, object> data) { }
         public void OnHostMigration(NetworkRunner runner, HostMigrationToken hostMigrationToken) { }
-        public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ArraySegment<byte> data) { }
         public void OnSceneLoadDone(NetworkRunner runner) { }
         public void OnSceneLoadStart(NetworkRunner runner) { }
     }
